@@ -209,7 +209,7 @@ def human_review_node(state: AgentState) -> AgentState:
     updated["sources"] = []
     updated["retrieved_sources"] = []
     updated.setdefault("workers_called", [])
-    updated["workers_called"].append("human_review")
+    # workers_called được append bởi caller (run_graph) — không append ở đây để tránh trùng lặp
     updated["history"].append({
         "step": "human_review",
         "reason": "HITL triggered",
@@ -227,6 +227,12 @@ def run_graph(task: str) -> Dict[str, Any]:
     """
     Entry point chính: Chạy toàn bộ pipeline với 1 câu hỏi.
     Returns dict state sau khi pipeline hoàn thành.
+
+    Pipeline flow:
+        1. Supervisor  -> quyết định route
+        2. Worker      -> retrieval_worker hoặc policy_tool_worker
+        3. Synthesis   -> tổng hợp câu trả lời + confidence score
+        4. HITL check  -> nếu confidence < HITL_CONFIDENCE_THRESHOLD -> human_review_node
     """
     from workers.retrieval import run as retrieval_run
     from workers.policy_tool import run as policy_tool_run
@@ -258,17 +264,36 @@ def run_graph(task: str) -> Dict[str, Any]:
         state.setdefault("workers_called", [])
         state["workers_called"].append("retrieval_worker")
 
-    # Step 3: Synthesis (trừ HITL)
+    # Step 3: Synthesis (trừ HITL từ supervisor)
     if not state.get("hitl_triggered", False):
         print(f"\n[GRAPH] Running synthesis_worker")
         state = synthesis_run(state)
         state["workers_called"].append("synthesis_worker")
 
+    # Step 4: Post-synthesis HITL — confidence threshold fallback
+    # Kích hoạt HITL nếu (có mã lỗi VÀ không có context) HOẶC (confidence < 0.30)
+    HITL_CONFIDENCE_THRESHOLD = 0.30
+    
+    has_error_and_no_context = _has_error_code(task) and not state.get("retrieved_chunks")
+    is_low_confidence = state.get("confidence", 1.0) < HITL_CONFIDENCE_THRESHOLD
+    
+    if (
+        not state.get("hitl_triggered", False)
+        and (has_error_and_no_context or is_low_confidence)
+    ):
+        print(
+            f"\n[GRAPH] Post-synthesis HITL: "
+            f"error_no_context={has_error_and_no_context} | low_conf={is_low_confidence}"
+        )
+        state = human_review_node(state)
+        state["workers_called"].append("human_review")
+
     state["latency_ms"] = round((time.time() - t0) * 1000, 1)
 
-    print(f"\n[GRAPH] ✅ Complete | Route={state.get('supervisor_route')} | "
+    print(f"\n[GRAPH] Complete | Route={state.get('supervisor_route')} | "
           f"Workers={state.get('workers_called')} | "
           f"Conf={state.get('confidence', 0):.2f} | "
+          f"HITL={state.get('hitl_triggered', False)} | "
           f"Latency={state['latency_ms']}ms")
     return state
 

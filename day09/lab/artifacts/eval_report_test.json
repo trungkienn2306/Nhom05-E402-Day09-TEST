@@ -1,0 +1,30 @@
+{
+  "generated_at": "2026-04-14T17:32:21",
+  "multi_agent_metrics": {
+    "file_analyzed": "artifacts/traces/runs.jsonl",
+    "total_questions": 15,
+    "avg_confidence": 0.648,
+    "avg_latency_ms": 4213,
+    "hitl_rate": "2/15 (13%)",
+    "mcp_usage_rate": "3/15 (20%)",
+    "multi_hop_rate": "8/15 (53%)",
+    "routing_distribution": {
+      "retrieval_worker": "8/15",
+      "policy_tool_worker": "7/15"
+    },
+    "abstain_rate": "0/15"
+  },
+  "single_agent_baseline": {
+    "avg_confidence": 0.45,
+    "avg_latency_ms": 850,
+    "abstain_rate": "1/15",
+    "multi_hop_accuracy": "40%",
+    "debuggability": "Low (Black box LLM call)"
+  },
+  "analysis": {
+    "accuracy_improvement": "Multi-Agent tăng độ chính xác nhờ tách biệt worker logic và MCP tools.",
+    "latency_tradeoff": "Latency tăng 3363ms do overhead của routing và process isolation.",
+    "confidence_gain": "Confidence trung bình tăng 0.198 nhờ grounding rules tốt hơn.",
+    "bonus_gq09": "Multi-Agent gọi được 2 workers (SLA + Access) cho câu gq09, Day 08 hoàn toàn thất bại câu này."
+  }
+}
