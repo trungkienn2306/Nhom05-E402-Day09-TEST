@@ -332,8 +332,17 @@ def dispatch_tool(tool_name: str, tool_input: dict) -> dict:
 # ─────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("MCP Server — Tool Discovery & Test")
+    import sys as _sys
+    if "--http" in _sys.argv:
+        # Bonus: HTTP server mode
+        port = 8765
+        for arg in _sys.argv:
+            if arg.startswith("--port="):
+                port = int(arg.split("=")[1])
+        _run_http_server(port=port)
+    else:
+        print("=" * 60)
+        print("MCP Server — Tool Discovery & Test")
     print("=" * 60)
 
     # 1. Discover tools
@@ -375,4 +384,79 @@ if __name__ == "__main__":
     print(f"  Error: {err.get('error')}")
 
     print("\n✅ MCP server test done.")
-    print("\nTODO Sprint 3: Implement HTTP server nếu muốn bonus +2.")
+    print("\nBonus: Chạy HTTP server với: python mcp_server.py --http")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BONUS (+2): HTTP MCP Server via FastAPI
+# Sprint 3 Optional — Expose MCP tools qua HTTP REST API
+#
+# Endpoint spec (MCP-compatible):
+#   GET  /tools              → list_tools()
+#   POST /tools/{tool_name}  → dispatch_tool(tool_name, body)
+#
+# Chạy: python mcp_server.py --http
+# Test: curl http://localhost:8765/tools
+#       curl -X POST http://localhost:8765/tools/search_kb \
+#            -H "Content-Type: application/json" \
+#            -d '{"query": "SLA P1", "top_k": 2}'
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _run_http_server(host: str = "0.0.0.0", port: int = 8765) -> None:
+    """
+    Khởi động FastAPI HTTP server để expose MCP tools qua REST API.
+    Requires: pip install fastapi uvicorn
+    """
+    try:
+        from fastapi import FastAPI, HTTPException
+        from fastapi.middleware.cors import CORSMiddleware
+        import uvicorn
+    except ImportError:
+        print("❌ Cần cài: pip install fastapi uvicorn")
+        print("   Sau đó chạy lại: python mcp_server.py --http")
+        return
+
+    app = FastAPI(
+        title="Day09 MCP Server",
+        description="MCP-compatible HTTP server exposing KB + Access Control tools",
+        version="1.0.0",
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["GET", "POST"],
+        allow_headers=["*"],
+    )
+
+    @app.get("/health")
+    def health() -> dict:
+        return {"status": "ok", "tools": list(TOOL_REGISTRY.keys()), "version": "1.0.0"}
+
+    @app.get("/tools")
+    def get_tools() -> list:
+        """MCP tools/list equivalent."""
+        return list_tools()
+
+    @app.post("/tools/{tool_name}")
+    def call_tool(tool_name: str, body: dict) -> dict:
+        """MCP tools/call equivalent."""
+        if tool_name not in TOOL_REGISTRY:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Tool '{tool_name}' not found. Available: {list(TOOL_REGISTRY.keys())}",
+            )
+        result = dispatch_tool(tool_name, body)
+        if isinstance(result, dict) and result.get("error"):
+            raise HTTPException(status_code=400, detail=result["error"])
+        return result
+
+    print(f"\n🚀 MCP HTTP Server starting at http://{host}:{port}")
+    print(f"   Endpoints:")
+    print(f"     GET  http://localhost:{port}/tools")
+    print(f"     POST http://localhost:{port}/tools/{{tool_name}}")
+    print(f"     GET  http://localhost:{port}/health")
+    print(f"   Tools: {list(TOOL_REGISTRY.keys())}")
+    print(f"\n   Ctrl+C to stop\n")
+
+    uvicorn.run(app, host=host, port=port, log_level="warning")

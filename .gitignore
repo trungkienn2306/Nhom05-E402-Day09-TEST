@@ -1,8 +1,48 @@
+# OS
 .DS_Store
+Thumbs.db
 *.swp
 *~
 
-# Grading questions — không public trước 17:00
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.tox/
+.coverage
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# Database and Vector Stores
+chroma_db/
+*.db
+*.sqlite
+
+# IDEs
+.vscode/
+.idea/
+
+# Claude / AI tools
+.claude/
+
+# Project Specific - Grading questions (không public trước 17:00)
 day08/lab/data/grading_questions.json
 day09/lab/data/grading_questions.json
 day10/lab/data/grading_questions.json
