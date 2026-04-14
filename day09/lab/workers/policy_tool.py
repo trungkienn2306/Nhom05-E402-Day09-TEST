@@ -138,7 +138,7 @@ def _call_mcp(tool_name: str, tool_input: Dict) -> Dict:
             "input": tool_input,
             "output": output,
             "error": None,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         }
     except Exception as exc:
         return {
@@ -146,7 +146,7 @@ def _call_mcp(tool_name: str, tool_input: Dict) -> Dict:
             "input": tool_input,
             "output": None,
             "error": {"code": "MCP_CALL_FAILED", "reason": str(exc)},
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         }
 
 
@@ -237,7 +237,7 @@ def run(state: Dict[str, Any]) -> Dict[str, Any]:
             "needs_tool": needs_tool,
             "risk_high": risk_high,
         },
-        "timestamp_start": datetime.now().isoformat(),
+        "timestamp_start": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
     try:
@@ -289,7 +289,7 @@ def run(state: Dict[str, Any]) -> Dict[str, Any]:
                 "access_level": access_level,
             },
             "status": "success",
-            "timestamp_end": datetime.now().isoformat(),
+            "timestamp_end": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         })
 
         print(f"[POLICY_TOOL] policy_applies={policy_result['policy_applies']} | "
@@ -308,7 +308,7 @@ def run(state: Dict[str, Any]) -> Dict[str, Any]:
         io_log.update({
             "status": "error",
             "error": {"code": "POLICY_TOOL_FAILED", "reason": str(exc)},
-            "timestamp_end": datetime.now().isoformat(),
+            "timestamp_end": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         })
         updated = dict(state)
         updated["policy_result"] = {"error": str(exc), "policy_applies": None, "exceptions_found": []}

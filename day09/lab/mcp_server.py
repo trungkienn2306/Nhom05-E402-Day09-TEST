@@ -267,7 +267,7 @@ def tool_create_ticket(priority: str, title: str, description: str = "") -> dict
         "title": title,
         "description": description[:200],
         "status": "open",
-        "created_at": datetime.now().isoformat(),
+        "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         "url": f"https://jira.company.internal/browse/{mock_id}",
         "note": "MOCK ticket — không tồn tại trong hệ thống thật",
     }

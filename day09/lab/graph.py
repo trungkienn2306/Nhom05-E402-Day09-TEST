@@ -75,8 +75,8 @@ def make_initial_state(task: str) -> AgentState:
         "workers_called": [],
         "worker_io_logs": [],
         "latency_ms": 0.0,
-        "run_id": f"run_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:18]}",
-        "timestamp": datetime.now().isoformat(),
+        "run_id": f"run_{datetime.now().strftime('%Y-%m-%d_%H%M')}",
+        "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
 
@@ -174,7 +174,7 @@ def supervisor_node(state: AgentState) -> AgentState:
         "reason": route_reason,
         "risk_high": risk_high,
         "needs_tool": needs_tool,
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     })
 
     print(f"\n[SUPERVISOR] Task: {task[:80]}...")
@@ -213,7 +213,7 @@ def human_review_node(state: AgentState) -> AgentState:
     updated["history"].append({
         "step": "human_review",
         "reason": "HITL triggered",
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     })
     print(f"[HUMAN_REVIEW] ⚠️  HITL triggered for: {state.get('task', '')[:60]}")
     return updated
@@ -274,11 +274,11 @@ def run_graph(task: str) -> Dict[str, Any]:
 
 
 def save_trace(state: Dict, output_dir: str = "./artifacts/traces") -> str:
-    """Lưu trace ra file JSON."""
+    """Lưu trace vào file JSONL duy nhất (mỗi lần chạy là một dòng JSON)."""
     os.makedirs(output_dir, exist_ok=True)
-    filename = os.path.join(output_dir, f"{state.get('run_id', 'run_unknown')}.json")
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2, default=str)
+    filename = os.path.join(output_dir, "runs.jsonl")
+    with open(filename, "a", encoding="utf-8") as f:
+        f.write(json.dumps(state, ensure_ascii=False, default=str) + "\n")
     return filename
 
 

@@ -129,7 +129,7 @@ def run_grading_questions(questions_file: str = "data/grading_questions.json") -
                     "confidence": result.get("confidence", 0.0),
                     "hitl_triggered": result.get("hitl_triggered", False),
                     "latency_ms": result.get("latency_ms"),
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
                 }
                 print(f"  ✓ route={record['supervisor_route']}, conf={record['confidence']:.2f}")
             except Exception as e:
@@ -145,7 +145,7 @@ def run_grading_questions(questions_file: str = "data/grading_questions.json") -
                     "confidence": 0.0,
                     "hitl_triggered": False,
                     "latency_ms": None,
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
                 }
                 print(f"  ✗ ERROR: {e}")
 
@@ -161,7 +161,7 @@ def run_grading_questions(questions_file: str = "data/grading_questions.json") -
 
 def analyze_traces(traces_dir: str = "artifacts/traces") -> dict:
     """
-    Đọc tất cả trace files và tính metrics tổng hợp.
+    Đọc tất cả trace từ file runs.jsonl và tính metrics tổng hợp.
 
     Metrics:
     - routing_distribution: % câu đi vào mỗi worker
@@ -174,19 +174,25 @@ def analyze_traces(traces_dir: str = "artifacts/traces") -> dict:
     Returns:
         dict of metrics
     """
-    if not os.path.exists(traces_dir):
-        print(f"⚠️  {traces_dir} không tồn tại. Chạy run_test_questions() trước.")
-        return {}
+    jsonl_file = os.path.join(traces_dir, "runs.jsonl")
 
-    trace_files = [f for f in os.listdir(traces_dir) if f.endswith(".json")]
-    if not trace_files:
-        print(f"⚠️  Không có trace files trong {traces_dir}.")
+    if not os.path.exists(jsonl_file):
+        print(f"⚠️  {jsonl_file} không tồn tại. Chạy run_test_questions() trước.")
         return {}
 
     traces = []
-    for fname in trace_files:
-        with open(os.path.join(traces_dir, fname)) as f:
-            traces.append(json.load(f))
+    with open(jsonl_file, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    traces.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass  # Bỏ qua dòng bị lỗi
+
+    if not traces:
+        print(f"⚠️  Không có trace nào trong {jsonl_file}.")
+        return {}
 
     # Compute metrics
     routing_counts = {}
@@ -264,7 +270,7 @@ def compare_single_vs_multi(
             day08_baseline = json.load(f)
 
     comparison = {
-        "generated_at": datetime.now().isoformat(),
+        "generated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         "day08_single_agent": day08_baseline,
         "day09_multi_agent": multi_metrics,
         "analysis": {

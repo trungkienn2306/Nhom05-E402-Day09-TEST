@@ -137,7 +137,7 @@ def run(state: Dict[str, Any]) -> Dict[str, Any]:
     io_log = {
         "worker": WORKER_NAME,
         "input": {"task": task[:120], "top_k": top_k},
-        "timestamp_start": datetime.now().isoformat(),
+        "timestamp_start": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
     try:
@@ -148,7 +148,7 @@ def run(state: Dict[str, Any]) -> Dict[str, Any]:
             "output": {"chunks_found": len(chunks), "sources": sources,
                        "top_score": chunks[0]["score"] if chunks else 0.0},
             "status": "success",
-            "timestamp_end": datetime.now().isoformat(),
+            "timestamp_end": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         })
 
         updated = dict(state)
@@ -165,7 +165,7 @@ def run(state: Dict[str, Any]) -> Dict[str, Any]:
         io_log.update({
             "status": "error",
             "error": {"code": "RETRIEVAL_FAILED", "reason": str(e)},
-            "timestamp_end": datetime.now().isoformat(),
+            "timestamp_end": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         })
         updated = dict(state)
         updated["retrieved_chunks"] = []

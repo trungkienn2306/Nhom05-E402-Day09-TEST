@@ -346,7 +346,7 @@ def run(state: Dict[str, Any]) -> Dict[str, Any]:
             "has_policy": bool(policy_result),
             "top_chunk_score": max((c.get("score", 0) for c in chunks), default=0),
         },
-        "timestamp_start": datetime.now().isoformat(),
+        "timestamp_start": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
     try:
@@ -360,7 +360,7 @@ def run(state: Dict[str, Any]) -> Dict[str, Any]:
                 "abstained": result.get("abstained", False),
             },
             "status": "success",
-            "timestamp_end": datetime.now().isoformat(),
+            "timestamp_end": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         })
 
         print(f"[SYNTHESIS] conf={result['confidence']:.3f} | "
@@ -379,7 +379,7 @@ def run(state: Dict[str, Any]) -> Dict[str, Any]:
         io_log.update({
             "status": "error",
             "error": {"code": "SYNTHESIS_FAILED", "reason": str(exc)},
-            "timestamp_end": datetime.now().isoformat(),
+            "timestamp_end": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         })
         updated = dict(state)
         updated["final_answer"] = f"[SYNTHESIS ERROR] {exc}"
