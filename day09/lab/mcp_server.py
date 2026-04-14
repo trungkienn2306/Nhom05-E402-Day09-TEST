@@ -1,9 +1,9 @@
 """
-mcp_server.py — Mock MCP Server
-Sprint 3: Implement ít nhất 2 MCP tools.
+mcp_server.py — MCP HTTP Server (Sprint 3 Bonus)
+Sprint 3: Implement ít nhất 2 MCP tools qua HTTP REST API.
 
-Mô phỏng MCP (Model Context Protocol) interface trong Python.
-Agent (MCP client) gọi dispatch_tool() thay vì hard-code từng API.
+Expose MCP (Model Context Protocol) tools qua FastAPI HTTP server.
+Các worker gọi tool qua HTTP thay vì Python import trực tiếp.
 
 Tools available:
     1. search_kb(query, top_k)           → tìm kiếm Knowledge Base
@@ -11,27 +11,31 @@ Tools available:
     3. check_access_permission(level, requester_role)  → kiểm tra quyền truy cập
     4. create_ticket(priority, title, description)     → tạo ticket mới (mock)
 
-Sử dụng:
-    from mcp_server import dispatch_tool, list_tools
+Cách sử dụng (2-terminal setup):
+    Terminal 1 (MCP Server — bật trước):
+        python day09/lab/mcp_server.py
 
-    # Discover available tools
-    tools = list_tools()
+    Terminal 2 (RAG Pipeline):
+        python day09/lab/graph.py  (hoặc eval_trace.py)
 
-    # Call a tool
-    result = dispatch_tool("search_kb", {"query": "SLA P1", "top_k": 3})
-
-Sprint 3 TODO:
-    - Option Standard: Sử dụng file này as-is (mock class)
-    - Option Advanced: Implement HTTP server với FastAPI hoặc dùng `mcp` library
-
-Chạy thử:
-    python mcp_server.py
+Endpoints:
+    GET  http://localhost:8765/health
+    GET  http://localhost:8765/tools
+    POST http://localhost:8765/tools/{tool_name}
 """
 
 import os
+import sys
+import io
 import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+# Force UTF-8 stdout/stderr tren Windows (tranh loi UnicodeEncodeError voi tieng Viet)
+if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+if sys.stderr.encoding and sys.stderr.encoding.lower() != 'utf-8':
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 
 # ─────────────────────────────────────────────
@@ -327,64 +331,7 @@ def dispatch_tool(tool_name: str, tool_input: dict) -> dict:
         }
 
 
-# ─────────────────────────────────────────────
-# Test & Demo
-# ─────────────────────────────────────────────
-
-if __name__ == "__main__":
-    import sys as _sys
-    if "--http" in _sys.argv:
-        # Bonus: HTTP server mode
-        port = 8765
-        for arg in _sys.argv:
-            if arg.startswith("--port="):
-                port = int(arg.split("=")[1])
-        _run_http_server(port=port)
-    else:
-        print("=" * 60)
-        print("MCP Server — Tool Discovery & Test")
-    print("=" * 60)
-
-    # 1. Discover tools
-    print("\n📋 Available Tools:")
-    for tool in list_tools():
-        print(f"  • {tool['name']}: {tool['description'][:60]}...")
-
-    # 2. Test search_kb
-    print("\n🔍 Test: search_kb")
-    result = dispatch_tool("search_kb", {"query": "SLA P1 resolution time", "top_k": 2})
-    if result.get("chunks"):
-        for c in result["chunks"]:
-            print(f"  [{c.get('score', '?')}] {c.get('source')}: {c.get('text', '')[:70]}...")
-    else:
-        print(f"  Result: {result}")
-
-    # 3. Test get_ticket_info
-    print("\n🎫 Test: get_ticket_info")
-    ticket = dispatch_tool("get_ticket_info", {"ticket_id": "P1-LATEST"})
-    print(f"  Ticket: {ticket.get('ticket_id')} | {ticket.get('priority')} | {ticket.get('status')}")
-    if ticket.get("notifications_sent"):
-        print(f"  Notifications: {ticket['notifications_sent']}")
-
-    # 4. Test check_access_permission
-    print("\n🔐 Test: check_access_permission (Level 3, emergency)")
-    perm = dispatch_tool("check_access_permission", {
-        "access_level": 3,
-        "requester_role": "contractor",
-        "is_emergency": True,
-    })
-    print(f"  can_grant: {perm.get('can_grant')}")
-    print(f"  required_approvers: {perm.get('required_approvers')}")
-    print(f"  emergency_override: {perm.get('emergency_override')}")
-    print(f"  notes: {perm.get('notes')}")
-
-    # 5. Test invalid tool
-    print("\n❌ Test: invalid tool")
-    err = dispatch_tool("nonexistent_tool", {})
-    print(f"  Error: {err.get('error')}")
-
-    print("\n✅ MCP server test done.")
-    print("\nBonus: Chạy HTTP server với: python mcp_server.py --http")
+# (Khối __main__ đã được chuyển xuống cuối file, sau định nghĩa _run_http_server)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -412,14 +359,31 @@ def _run_http_server(host: str = "0.0.0.0", port: int = 8765) -> None:
         from fastapi.middleware.cors import CORSMiddleware
         import uvicorn
     except ImportError:
-        print("❌ Cần cài: pip install fastapi uvicorn")
-        print("   Sau đó chạy lại: python mcp_server.py --http")
+        print("[ERROR] Can't import fastapi/uvicorn. Run: pip install fastapi uvicorn")
+        print("   Then retry: python mcp_server.py")
         return
+
+    from fastapi.responses import JSONResponse as _JSONResponse
+    import json as _json
+
+    class UTF8JSONResponse(_JSONResponse):
+        """JSONResponse voi ensure_ascii=False de tra Unicode (tieng Viet) chinh xac."""
+        media_type = "application/json; charset=utf-8"
+
+        def render(self, content) -> bytes:
+            return _json.dumps(
+                content,
+                ensure_ascii=False,
+                allow_nan=False,
+                indent=None,
+                separators=(",", ":"),
+            ).encode("utf-8")
 
     app = FastAPI(
         title="Day09 MCP Server",
         description="MCP-compatible HTTP server exposing KB + Access Control tools",
         version="1.0.0",
+        default_response_class=UTF8JSONResponse,
     )
 
     app.add_middleware(
@@ -451,12 +415,34 @@ def _run_http_server(host: str = "0.0.0.0", port: int = 8765) -> None:
             raise HTTPException(status_code=400, detail=result["error"])
         return result
 
-    print(f"\n🚀 MCP HTTP Server starting at http://{host}:{port}")
+    print(f"\n[MCP_SERVER] Starting HTTP server at http://{host}:{port}")
     print(f"   Endpoints:")
+    print(f"     GET  http://localhost:{port}/health")
     print(f"     GET  http://localhost:{port}/tools")
     print(f"     POST http://localhost:{port}/tools/{{tool_name}}")
-    print(f"     GET  http://localhost:{port}/health")
     print(f"   Tools: {list(TOOL_REGISTRY.keys())}")
-    print(f"\n   Ctrl+C to stop\n")
+    print(f"   Press Ctrl+C to stop\n")
 
     uvicorn.run(app, host=host, port=port, log_level="warning")
+
+
+# ─────────────────────────────────────────────
+# Entry Point
+# ─────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import sys as _sys
+
+    # Đọc port từ argument nếu có (--port=XXXX), mặc định 8765
+    port = 8765
+    for arg in _sys.argv[1:]:
+        if arg.startswith("--port="):
+            try:
+                port = int(arg.split("=")[1])
+            except ValueError:
+                pass
+
+    # Mặc định luôn khởi động HTTP server (không cần flag --http)
+    # Terminal 1: python day09/lab/mcp_server.py
+    # Terminal 2: python day09/lab/graph.py / eval_trace.py
+    _run_http_server(port=port)

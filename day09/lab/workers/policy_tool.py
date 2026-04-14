@@ -21,9 +21,16 @@ from __future__ import annotations
 
 import re
 import sys
+import io
 import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+# Force UTF-8 stdout/stderr tren Windows
+if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+if sys.stderr.encoding and sys.stderr.encoding.lower() != 'utf-8':
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 WORKER_NAME = "policy_tool_worker"
 
@@ -118,21 +125,33 @@ def _detect_exceptions(task: str, context_text: str) -> List[Dict]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MCP Client
+# MCP HTTP Client
 # ─────────────────────────────────────────────────────────────────────────────
+
+# URL của MCP HTTP server (Terminal 1: python mcp_server.py)
+MCP_BASE_URL = os.environ.get("MCP_SERVER_URL", "http://localhost:8765")
+
 
 def _call_mcp(tool_name: str, tool_input: Dict) -> Dict:
     """
-    Gọi MCP tool qua dispatch_tool() từ mcp_server.py.
+    Gọi MCP tool qua HTTP REST API (http://localhost:8765/tools/{tool_name}).
+
+    Yêu cầu: MCP Server phải đang chạy ở Terminal 1.
+        Terminal 1: python day09/lab/mcp_server.py
+        Terminal 2: python day09/lab/graph.py (hoặc eval_trace.py)
+
     Logs tool call với timestamp để trace.
     """
+    import requests
+
+    url = f"{MCP_BASE_URL}/tools/{tool_name}"
     try:
-        # Add lab root to path for import
-        _lab_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        if _lab_root not in sys.path:
-            sys.path.insert(0, _lab_root)
-        from mcp_server import dispatch_tool
-        output = dispatch_tool(tool_name, tool_input)
+        resp = requests.post(url, json=tool_input, timeout=5)
+        resp.raise_for_status()
+        # Dat encoding ro rang truoc khi decode JSON
+        # (tranh requests tu detect sai charset tren Windows)
+        resp.encoding = 'utf-8'
+        output = resp.json()
         return {
             "tool": tool_name,
             "input": tool_input,
@@ -140,12 +159,33 @@ def _call_mcp(tool_name: str, tool_input: Dict) -> Dict:
             "error": None,
             "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         }
+    except requests.exceptions.ConnectionError:
+        error_msg = (
+            f"Không thể kết nối đến MCP Server tại {MCP_BASE_URL}. "
+            f"Vui lòng mở Terminal 1 và chạy: python day09/lab/mcp_server.py"
+        )
+        print(f"[POLICY_TOOL] [ERROR] MCP CONNECTION ERROR: {error_msg}")
+        return {
+            "tool": tool_name,
+            "input": tool_input,
+            "output": None,
+            "error": {"code": "MCP_CONNECTION_ERROR", "reason": error_msg},
+            "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+    except requests.exceptions.Timeout:
+        return {
+            "tool": tool_name,
+            "input": tool_input,
+            "output": None,
+            "error": {"code": "MCP_TIMEOUT", "reason": f"Request tới {url} timeout sau 5 giây."},
+            "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        }
     except Exception as exc:
         return {
             "tool": tool_name,
             "input": tool_input,
             "output": None,
-            "error": {"code": "MCP_CALL_FAILED", "reason": str(exc)},
+            "error": {"code": "MCP_HTTP_FAILED", "reason": str(exc)},
             "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         }
 
